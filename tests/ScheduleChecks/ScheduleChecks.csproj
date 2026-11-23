@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/Arrival.cs" Link="Arrival.cs" />
+    <Compile Include="../../src/Visit.cs" Link="Visit.cs" />
+  </ItemGroup>
+</Project>

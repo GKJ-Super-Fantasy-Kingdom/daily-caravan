@@ -1,0 +1,10 @@
+{
+  "name": "DailyCaravan",
+  "version_number": "0.1.0",
+  "website_url": "https://github.com/GKJ-Super-Fantasy-Kingdom/DailyCaravan",
+  "description": "Receive one native caravan item choice each eligible day. Scheduled and invited caravans share a visit, with gamepad and mouse support.",
+  "dependencies": [
+    "BepInEx-BepInExPack-5.4.2305",
+    "BepInEx-HideManagerGameObject_Config-5.4.2304"
+  ]
+}
