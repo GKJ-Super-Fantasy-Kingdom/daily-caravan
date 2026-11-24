@@ -4,6 +4,8 @@ using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
 using SuperFantasyKingdom;
+using SuperFantasyKingdom.Spawner;
+using SuperFantasyKingdom.UI;
 using UnityEngine;
 
 namespace DailyCaravan
@@ -16,6 +18,7 @@ namespace DailyCaravan
         private Harmony patches;
         private GameDataManager scene;
         private int day;
+        private bool rewardPresent;
         private string dawnHash;
         private string directory;
         private string recordPath;
@@ -65,6 +68,39 @@ namespace DailyCaravan
         internal static string Fingerprint(GameData data) =>
             data == null ? "new" : Helper.GenerateHash(JsonUtility.ToJson(data));
 
+        internal void RecordGrant(string card, int added, string singleDrop)
+        {
+            if (!Visit.RecordDrops(card, added, singleDrop, CaravanPatches.HasGrantHooks())) return;
+            rewardPresent = true;
+            Persist();
+        }
+
+        // Providers call this synchronously for a native caravan card with a non-drop reward.
+        public static bool TryGrantProviderReward(UICardItem card, Func<bool> grant)
+        {
+            var plugin = Instance;
+            if (plugin == null || !CaravanPatches.CanGrant(card, out string id) ||
+                !plugin.Visit.GrantProviderReward(id, grant)) return false;
+            plugin.rewardPresent = true;
+            plugin.Persist();
+            return true;
+        }
+
+        internal void GrantFaithBonus(DroppedShardSpawner spawner, Vector3 position, int amount, ResourceType resource, bool onScreen)
+        {
+            if (amount <= 0) return;
+            if (Visit.bonus == null || Visit.bonus.amount <= 0)
+                Visit.bonus = new FaithBonus { amount = amount, resource = (int)resource,
+                    x = position.x, y = position.y, z = position.z, onScreen = onScreen };
+            DeliverBonus(spawner);
+        }
+
+        private void DeliverBonus(DroppedShardSpawner spawner)
+        {
+            if (Visit.bonus.Deliver(b => spawner.Spawn(new Vector3(b.x, b.y, b.z), b.amount, (ResourceType)b.resource, b.onScreen)))
+                Persist();
+        }
+
         private bool EnterDay()
         {
             var manager = GameDataManager.Instance;
@@ -74,6 +110,7 @@ namespace DailyCaravan
 
             scene = manager;
             day = today;
+            rewardPresent = false;
             arrival = new Arrival();
             directory = Path.Combine(Paths.ConfigPath, "DailyCaravan", SettingsManager.Instance.GetProfile().ToString(),
                 Helper.GenerateHash(manager.GetRunID()), day.ToString());
@@ -84,10 +121,12 @@ namespace DailyCaravan
                 if (File.Exists(recordPath))
                 {
                     var saved = JsonUtility.FromJson<Visit>(File.ReadAllText(recordPath));
-                    if (saved != null && saved.kingdom >= 0 && saved.kingdom <= (int)Races.Swamp)
+                    if (saved != null && saved.kingdom >= 0)
                     {
+                        saved.items = null;
                         Visit = saved;
-                        arrival.Request(Visit);
+                        rewardPresent = saved.rewardInSave;
+                        if (saved.ResumeWithoutBooking) arrival.Request(Visit);
                     }
                 }
             }
@@ -95,10 +134,14 @@ namespace DailyCaravan
             return true;
         }
 
-        internal bool Request(Races? invitation = null)
+        internal bool Request(VisitOrigin origin, Races? invitation = null)
         {
             if (!EnterDay()) return false;
-            arrival.Request(Visit, (int?)invitation);
+            if (!arrival.Dispatched)
+            {
+                arrival.Request(Visit, (int?)invitation, origin);
+                if (origin == VisitOrigin.Invitation) Persist();
+            }
             return true;
         }
 
@@ -108,28 +151,41 @@ namespace DailyCaravan
             if (DailyCaravan.Visit.AddsVisit(today, firstDay.Value,
                     RaceDataManager.Instance.HasRaceEventFlag(RaceEvent.GateOpened),
                     WorldManager.Instance.HasUnlockedCaravans(), MainManager.Instance.IsChallenge()))
-                Request();
+                Request(VisitOrigin.Daily);
         }
 
         private void Update()
         {
-            if (!arrival.Pending || scene == null || scene != GameDataManager.Instance || GameManager.Instance == null ||
+            bool restoreBonus = Visit?.bonus?.NeedsRestore == true;
+            if ((!arrival.Pending && !restoreBonus) || scene == null || scene != GameDataManager.Instance || GameManager.Instance == null ||
                 !GameManager.Instance.IsGameRunning() || GameManager.Instance.IsUnloading() ||
                 GameManager.Instance.IsGameOver() || day != DaytimeManager.Instance.CurrentDay()) return;
 
             var world = WorldManager.Instance;
             var overlay = OverlayManager.Instance;
-            bool busy = world == null || world.GetCaravan() == null || world.GetGuest() != null || overlay == null ||
-                (LastGuest != null && LastGuest.gameObject.activeInHierarchy) || overlay.IsOpen() || overlay.HasMinimizedOverlay() || GameCamera.Instance.IsCutscene() ||
-                DialogueManager.Instance.IsInDialogue() || PauseMenuManger.Instance.InMenu();
+            bool busy = world == null || world.GetCaravan() == null || world.GetGuest() != null ||
+                (LastGuest != null && LastGuest.gameObject.activeInHierarchy) || overlay == null ||
+                overlay.IsOpen() || overlay.HasMinimizedOverlay() || GameManager.Instance.IsForcedPause() ||
+                GameCamera.Instance.IsCutscene() || DialogueManager.Instance.IsInDialogue() ||
+                UIManager.Instance == null || !UIManager.Instance.IsWorldInteractable();
 
+            if (!busy && restoreBonus) DeliverBonus(DroppedShardSpawner.Instance);
             ArrivalAction action = arrival.Take(Visit, busy);
             if (action == ArrivalAction.Wait || action == ArrivalAction.Complete) return;
             if (action == ArrivalAction.RestoreItem)
             {
-                // This exact dawn predates the native item drop. Recreate only the recorded choice.
-                ItemManager.Instance.SpawnDragItem(Visit.selected, new Vector2(0f, 3f));
-                return;
+                // An older dawn can restore a plain drop. A provider-owned grant needs its picker.
+                if (!Visit.providerGrant && !CaravanPatches.HasGrantHooks() &&
+                    AddressablesManager.Instance.GetItem(Visit.selected) != null)
+                {
+                    var drops = ItemManager.Instance.GetDragItems();
+                    int before = drops.Count;
+                    ItemManager.Instance.SpawnDragItem(Visit.selected, new Vector2(0f, 3f));
+                    rewardPresent = drops.Count == before + 1;
+                    return;
+                }
+                Visit.selected = null;
+                Visit.providerGrant = false;
             }
             if (Visit.kingdom < 0)
                 Visit.kingdom = DailyCaravan.Visit.VisitingKingdom(GameManager.Instance.GetSeed(), day, (int)RaceManager.Instance.GetRace());
@@ -140,7 +196,7 @@ namespace DailyCaravan
         }
 
         internal bool Owns(GuestCaravan guest) =>
-            arrival.Dispatched && scene != null && scene == GameDataManager.Instance && WorldManager.Instance != null &&
+            arrival.Dispatched && scene != null && scene == GameDataManager.Instance && day == DaytimeManager.Instance.CurrentDay() && WorldManager.Instance != null &&
             guest != null && guest == WorldManager.Instance.GetCaravan();
 
         internal void Persist() => WriteRecord(recordPath, Visit);
@@ -151,7 +207,8 @@ namespace DailyCaravan
             if (Visit == null || Visit.kingdom < 0 || scene == null || scene != GameDataManager.Instance ||
                 data.runID != scene.GetRunID() || data.day + 1 != day) return;
             var snapshot = JsonUtility.FromJson<Visit>(JsonUtility.ToJson(Visit));
-            snapshot.rewardInSave = Visit.rewardInSave || (!string.IsNullOrEmpty(snapshot.selected) && arrival.Dispatched);
+            snapshot.rewardInSave = rewardPresent;
+            if (snapshot.bonus != null) snapshot.bonus.inSave = Visit.bonus?.Present == true;
             WriteRecord(Path.Combine(directory, Fingerprint(data) + ".json"), snapshot);
         }
 

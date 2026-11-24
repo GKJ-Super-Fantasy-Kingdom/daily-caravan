@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using SuperFantasyKingdom;
 using SuperFantasyKingdom.UI;
@@ -40,7 +40,7 @@ namespace DailyCaravan
             private static void Postfix(ref bool __result)
             {
                 if (__result && DaytimeManager.Instance.IsLoading() &&
-                    RaceDataManager.Instance.HasRaceEventFlag(RaceEvent.GateOpened) && Plugin.Request())
+                    RaceDataManager.Instance.HasRaceEventFlag(RaceEvent.GateOpened) && Plugin.Request(VisitOrigin.Booking))
                     __result = false;
             }
         }
@@ -49,13 +49,23 @@ namespace DailyCaravan
         [HarmonyPatch(typeof(WorldManager), "TriggerCaravan")]
         private static class Tokens
         {
-            private static bool Prefix(Races __0) => !Plugin.Request(__0);
+            [HarmonyPriority(Priority.Last)]
+            private static bool Prefix(Races __0, bool __runOriginal) => __runOriginal && !Plugin.Request(VisitOrigin.Invitation, __0);
         }
 
         [HarmonyPatch(typeof(GuestCaravan), nameof(GuestCaravan.TriggerManually), typeof(Races))]
         private static class Invitation
         {
-            private static bool Prefix(Races __0) => Plugin.Launching || !Plugin.Request(__0);
+            [HarmonyPriority(Priority.Last)]
+            private static bool Prefix(Races __0, bool __runOriginal) => __runOriginal && (Plugin.Launching || !Plugin.Request(VisitOrigin.Invitation, __0));
+        }
+
+        [HarmonyPatch(typeof(GuestCaravan), nameof(GuestCaravan.TriggerManually), new Type[0])]
+        private static class DirectOpen
+        {
+            [HarmonyPriority(Priority.Last)]
+            private static bool Prefix(GuestCaravan __instance, Races ___m_Kingdom, bool __runOriginal) =>
+                __runOriginal && (Plugin.Owns(__instance) || !Plugin.Request(VisitOrigin.Invitation, ___m_Kingdom));
         }
 
         [HarmonyPatch(typeof(GuestCaravan), "OnCaravan")]
@@ -64,37 +74,42 @@ namespace DailyCaravan
             private static bool Prefix(GuestCaravan __instance) => !Plugin.Owns(__instance) || !Plugin.Visit.Finished;
         }
 
-        [HarmonyPatch(typeof(GuestCaravan), "Reroll")]
-        private static class Inventory
-        {
-            private static void Prefix(GuestCaravan __instance, bool ___m_FirstOpen, List<string> ___m_Chosen,
-                ref bool __1)
-            {
-                if (!Plugin.Owns(__instance) || !___m_FirstOpen || Plugin.Visit.items == null) return;
-                ___m_Chosen.Clear();
-                ___m_Chosen.AddRange(Plugin.Visit.items);
-                __1 = false;
-            }
-
-            private static void Postfix(GuestCaravan __instance, List<string> ___m_Chosen)
-            {
-                if (Plugin.Owns(__instance) && ___m_Chosen.Count > 0)
-                {
-                    Plugin.Visit.items = ___m_Chosen.ToArray();
-                    Plugin.Persist();
-                }
-            }
-        }
-
         [HarmonyPatch(typeof(GuestCaravan), "Cancel")]
         private static class Decline
         {
-            private static void Postfix(GuestCaravan __instance)
+            private static void Postfix(GuestCaravan __instance, bool __runOriginal)
             {
-                if (!Plugin.Owns(__instance) || Plugin.Visit.Finished) return;
+                if (!__runOriginal || !Plugin.Owns(__instance) || Plugin.Visit.Finished) return;
                 Plugin.Visit.declined = true;
                 Plugin.Persist();
             }
+        }
+
+        // A custom card/grant hook can veto, transform, or attach side effects to an award.
+        // Replaying that decision from an earlier dawn belongs to the active picker.
+        internal static bool HasGrantHooks()
+        {
+            return HasForeignHooks(typeof(UICardItem), "Select") || HasForeignHooks(typeof(ItemManager), "SpawnDragItem");
+        }
+
+        private static bool HasForeignHooks(Type type, string name) =>
+            Harmony.GetPatchInfo(AccessTools.Method(type, name))?.Owners.Any(id => id != "sfk.dailycaravan") == true;
+
+        private static readonly AccessTools.FieldRef<UIOverlayMerchant, Action<int, ResourceAmount[]>> Callback =
+            AccessTools.FieldRefAccess<UIOverlayMerchant, Action<int, ResourceAmount[]>>("m_Callback");
+        private static readonly AccessTools.FieldRef<UICard, bool> Ready = AccessTools.FieldRefAccess<UICard, bool>("m_CanBeClicked");
+        private static readonly AccessTools.FieldRef<UICardItem, string> CardId = AccessTools.FieldRefAccess<UICardItem, string>("m_ItemIdentifier");
+
+        private static bool IsCaravanCard(UICardItem card)
+        {
+            var screen = card == null ? null : card.GetComponentInParent<UIOverlayMerchant>();
+            return screen != null && Callback(screen)?.Target is GuestCaravan guest && Plugin.Owns(guest);
+        }
+
+        internal static bool CanGrant(UICardItem card, out string id)
+        {
+            id = IsCaravanCard(card) && Ready(card) ? CardId(card) : null;
+            return !string.IsNullOrEmpty(id);
         }
 
         // A merchant card focuses and shows keywords before Select actually grants the item.
@@ -102,26 +117,24 @@ namespace DailyCaravan
         [HarmonyPatch(typeof(UICardItem), "Select")]
         private static class Select
         {
-            private static readonly AccessTools.FieldRef<UIOverlayMerchant, Action<int, ResourceAmount[]>> Callback =
-                AccessTools.FieldRefAccess<UIOverlayMerchant, Action<int, ResourceAmount[]>>("m_Callback");
-
-            private static bool Prefix(UICardItem __instance, bool ___m_CanBeClicked,
-                string ___m_ItemIdentifier, out string __state)
+            private static bool Prefix(UICardItem __instance, bool ___m_CanBeClicked, out int? __state)
             {
                 __state = null;
-                var merchant = __instance.GetComponentInParent<UIOverlayMerchant>();
-                if (merchant == null || !(Callback(merchant)?.Target is GuestCaravan guest) || !Plugin.Owns(guest))
-                    return true;
-                if (Plugin.Visit.Finished) return false;
-                if (___m_CanBeClicked) __state = ___m_ItemIdentifier;
+                if (!IsCaravanCard(__instance)) return true;
+                if (!Plugin.Visit.CanSelect) return false;
+                if (___m_CanBeClicked) __state = ItemManager.Instance.GetDragItems().Count;
                 return true;
             }
 
-            private static void Postfix(string __state)
+            [HarmonyPriority(Priority.Last)]
+            private static void Postfix(int? __state, string ___m_ItemIdentifier)
             {
                 if (__state == null) return;
-                Plugin.Visit.selected = __state;
-                Plugin.Persist();
+                var drops = ItemManager.Instance.GetDragItems();
+                int added = drops.Count - __state.Value;
+                if (added <= 0) return;
+                string singleDrop = added == 1 ? drops[__state.Value].GetItemIdentifier() : null;
+                Plugin.RecordGrant(___m_ItemIdentifier, added, singleDrop);
             }
         }
     }

@@ -8,11 +8,15 @@ namespace DailyCaravan
         internal bool Dispatched { get; private set; }
         internal bool Pending => pending;
 
-        internal void Request(Visit visit, int? kingdom = null)
+        internal void Request(Visit visit, int? kingdom = null, VisitOrigin origin = VisitOrigin.Unknown)
         {
             if (Dispatched) return;
             pending = true;
-            if (kingdom.HasValue && visit.kingdom < 0) visit.kingdom = kingdom.Value;
+            if (visit.Finished) return;
+            if (kingdom.HasValue && (visit.kingdom < 0 ||
+                (origin == VisitOrigin.Invitation && (visit.origin == VisitOrigin.Daily || visit.origin == VisitOrigin.Booking))))
+                visit.kingdom = kingdom.Value;
+            if (origin > visit.origin) visit.origin = origin;
         }
 
         internal ArrivalAction Take(Visit visit, bool busy)

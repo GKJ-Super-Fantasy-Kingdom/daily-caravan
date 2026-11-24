@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/Arrival.cs" Link="Arrival.cs" />
+    <Compile Include="../../src/OfferPool.cs" Link="OfferPool.cs" />
     <Compile Include="../../src/Visit.cs" Link="Visit.cs" />
   </ItemGroup>
 </Project>
