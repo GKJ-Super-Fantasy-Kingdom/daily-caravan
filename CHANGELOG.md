@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.3
+
+- Daily visits in ordinary kingdoms start on Day 16 by default once the giant gate is open. Set `AllowBeforeGiantGate = true` in the Schedule section to allow visits before opening the gate. The normal caravan progression check still applies.
+- Verified one visit and one item on Days 23–25 after Continue with a copied Day 22 save and the gate option enabled. Visitor Calendar 0.1.2 forecasts these visits without filling in missed days.
+
+## 0.1.2
+
+- Shortened checkpoint filenames so caravan decisions save in long Windows mod-manager profile paths. Existing readable records still load.
+- Clarified how invitations work before the giant gate opens.
+
+## 0.1.1
+
+- Added the game's caravan portrait beside the title of ordinary item offers.
+- Set initial controller focus to the first offered item so its description is available when the wagon opens.
+- Kept longer keyword descriptions clear of the rightmost card and its kingdom badge at 1.5Ã— UI scale.
+
 ## 0.1.0
 
 - Added a configurable daily caravan for unlocked kingdoms and a shared limit for scheduled and invited visits.

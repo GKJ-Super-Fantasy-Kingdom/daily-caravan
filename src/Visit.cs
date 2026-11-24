@@ -65,9 +65,9 @@ namespace DailyCaravan
             return true;
         }
 
-        internal static bool AddsVisit(int day, int firstDay, bool gateOpen, bool caravansUnlocked, bool challenge)
+        internal static bool AddsVisit(int day, int firstDay, bool gateAllowed, bool caravansUnlocked, bool challenge)
         {
-            return !challenge && gateOpen && caravansUnlocked && day >= firstDay;
+            return !challenge && gateAllowed && caravansUnlocked && day >= firstDay;
         }
 
         internal static int VisitingKingdom(int seed, int day, int home)

@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using SuperFantasyKingdom;
@@ -71,7 +73,43 @@ namespace DailyCaravan
         [HarmonyPatch(typeof(GuestCaravan), "OnCaravan")]
         private static class Open
         {
-            private static bool Prefix(GuestCaravan __instance) => !Plugin.Owns(__instance) || !Plugin.Visit.Finished;
+            private static bool Prefix(GuestCaravan __instance, bool ___m_FirstOpen, out bool __state)
+            {
+                __state = ___m_FirstOpen;
+                return !Plugin.Owns(__instance) || !Plugin.Visit.Finished;
+            }
+
+            [HarmonyAfter("gkj.sfk.caravancommissions")]
+            private static void Postfix(GuestCaravan __instance, bool __state, bool __runOriginal, List<string> ___m_Chosen)
+            {
+                if (!__runOriginal || !Plugin.Owns(__instance) || ___m_Chosen.Count == 0) return;
+                var screen = OverlayManager.Instance.GetMerchant();
+                if (!screen || !ReferenceEquals(Callback(screen)?.Target, __instance)) return;
+                // The game activates the merchant after OnCaravan returns.
+                var first = screen.GetComponentsInChildren<UICardItem>(true).FirstOrDefault(card => CardId(card) == ___m_Chosen[0]);
+                if (!first) return;
+                Plugin.StartCoroutine(Present(screen, first, __instance, __state));
+            }
+
+            private static IEnumerator Present(UIOverlayMerchant screen, UICardItem first, GuestCaravan guest, bool firstOpen)
+            {
+                var button = first.GetCardButton();
+                var gamepad = GamepadManager.Instance;
+                var previousFocus = gamepad.GetGameObjectToSelect();
+                float deadline = UnityEngine.Time.realtimeSinceStartup + 3f;
+                while (screen && button && ReferenceEquals(Callback(screen)?.Target, guest) && Plugin.Owns(guest))
+                {
+                    if (screen.isActiveAndEnabled && button.isActiveAndEnabled && button.IsInteractable())
+                    {
+                        CaravanPortrait.Show(screen);
+                        if (firstOpen && gamepad.GetGameObjectToSelect() == previousFocus)
+                            gamepad.SetGameObjectToSelect(button.gameObject, force: true);
+                        yield break;
+                    }
+                    if (UnityEngine.Time.realtimeSinceStartup >= deadline) yield break;
+                    yield return null;
+                }
+            }
         }
 
         [HarmonyPatch(typeof(GuestCaravan), "Cancel")]

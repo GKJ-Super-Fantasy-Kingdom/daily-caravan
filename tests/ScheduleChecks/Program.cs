@@ -15,6 +15,16 @@ Check(!Visit.AddsVisit(20, 1, false, true, false), "locked gate");
 Check(!Visit.AddsVisit(2, 1, true, false, false), "locked caravan progression");
 Check(!Visit.AddsVisit(20, 1, true, true, true), "challenge receives only native bookings");
 
+var config = @"C:\Users\user\AppData\Roaming\Thunderstore Mod Manager\DataFolder\SuperFantasyKingdom\profiles\GKJ - Controller Test\BepInEx\config";
+var runHash = new string('a', 64);
+var dawnHash = new string('b', 64);
+var paths = new RecordPaths(config, 0, runHash, 16);
+Check((paths.Legacy(dawnHash) + ".tmp").Length == 288 && (paths.For(dawnHash) + ".tmp").Length < 260,
+    "atomic writes fit the reported Windows profile path");
+Check(new[] { paths.For(dawnHash), paths.For("new"), new RecordPaths(config, 1, runHash, 16).For(dawnHash),
+    new RecordPaths(config, 0, runHash, 17).For(dawnHash), new RecordPaths(config, 0, dawnHash, 16).For(dawnHash) }.Distinct().Count() == 5,
+    "compact records distinguish profiles, runs, days and checkpoints");
+
 var visit = new Visit();
 var arrival = new Arrival();
 arrival.Request(visit);

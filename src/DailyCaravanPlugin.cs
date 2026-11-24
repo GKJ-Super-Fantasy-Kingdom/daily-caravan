@@ -10,17 +10,18 @@ using UnityEngine;
 
 namespace DailyCaravan
 {
-    [BepInPlugin("sfk.dailycaravan", "Daily Caravan", "0.1.0")]
+    [BepInPlugin("sfk.dailycaravan", "Daily Caravan", "0.1.3")]
     public sealed class DailyCaravanPlugin : BaseUnityPlugin
     {
         internal static DailyCaravanPlugin Instance;
         private ConfigEntry<int> firstDay;
+        private ConfigEntry<bool> allowBeforeGiantGate;
         private Harmony patches;
         private GameDataManager scene;
         private int day;
         private bool rewardPresent;
         private string dawnHash;
-        private string directory;
+        private RecordPaths records;
         private string recordPath;
         internal Visit Visit;
         internal Guest LastGuest;
@@ -31,14 +32,16 @@ namespace DailyCaravan
         {
             Instance = this;
             firstDay = Config.Bind("Schedule", "FirstDay", 16, new ConfigDescription(
-                "First ordinary kingdom day for supplemental caravans. Native unlocks and challenge schedules still apply.",
+                "Earliest ordinary kingdom day for supplemental caravans. Caravan progression still applies.",
                 new AcceptableValueRange<int>(1, 999)));
+            allowBeforeGiantGate = Config.Bind("Schedule", "AllowBeforeGiantGate", false,
+                "Allow supplemental caravans before the giant gate opens. FirstDay and the game's caravan progression check still apply.");
             patches = new Harmony("sfk.dailycaravan");
             try
             {
                 patches.PatchAll(typeof(DailyCaravanPlugin).Assembly);
                 DaytimeManager.OnMorningStart += Morning;
-                Logger.LogInfo("Daily Caravan 0.1.0 ready.");
+                Logger.LogInfo("Daily Caravan 0.1.3 ready.");
             }
             catch
             {
@@ -112,15 +115,16 @@ namespace DailyCaravan
             day = today;
             rewardPresent = false;
             arrival = new Arrival();
-            directory = Path.Combine(Paths.ConfigPath, "DailyCaravan", SettingsManager.Instance.GetProfile().ToString(),
-                Helper.GenerateHash(manager.GetRunID()), day.ToString());
-            recordPath = Path.Combine(directory, (dawnHash ?? "new") + ".json");
+            records = new RecordPaths(Paths.ConfigPath, SettingsManager.Instance.GetProfile(), Helper.GenerateHash(manager.GetRunID()), day);
+            string checkpoint = dawnHash ?? "new";
+            recordPath = records.For(checkpoint);
             Visit = new Visit();
             try
             {
-                if (File.Exists(recordPath))
+                string source = File.Exists(recordPath) ? recordPath : records.Legacy(checkpoint);
+                if (File.Exists(source))
                 {
-                    var saved = JsonUtility.FromJson<Visit>(File.ReadAllText(recordPath));
+                    var saved = JsonUtility.FromJson<Visit>(File.ReadAllText(source));
                     if (saved != null && saved.kingdom >= 0)
                     {
                         saved.items = null;
@@ -149,7 +153,7 @@ namespace DailyCaravan
         {
             if (!EnterDay()) return;
             if (DailyCaravan.Visit.AddsVisit(today, firstDay.Value,
-                    RaceDataManager.Instance.HasRaceEventFlag(RaceEvent.GateOpened),
+                    allowBeforeGiantGate.Value || RaceDataManager.Instance.HasRaceEventFlag(RaceEvent.GateOpened),
                     WorldManager.Instance.HasUnlockedCaravans(), MainManager.Instance.IsChallenge()))
                 Request(VisitOrigin.Daily);
         }
@@ -209,7 +213,7 @@ namespace DailyCaravan
             var snapshot = JsonUtility.FromJson<Visit>(JsonUtility.ToJson(Visit));
             snapshot.rewardInSave = rewardPresent;
             if (snapshot.bonus != null) snapshot.bonus.inSave = Visit.bonus?.Present == true;
-            WriteRecord(Path.Combine(directory, Fingerprint(data) + ".json"), snapshot);
+            WriteRecord(records.For(Fingerprint(data)), snapshot);
         }
 
         private void WriteRecord(string path, Visit visit)
@@ -217,7 +221,7 @@ namespace DailyCaravan
             if (path == null || visit == null) return;
             try
             {
-                Directory.CreateDirectory(directory);
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
                 string temp = path + ".tmp";
                 File.WriteAllText(temp, JsonUtility.ToJson(visit));
                 if (File.Exists(path)) File.Replace(temp, path, null);
