@@ -42,3 +42,7 @@ Both captures show Daily Caravan 0.1.3 in Super Fantasy Kingdom 0.8.068 after Co
 1. Open Thunderstore Mod Manager and select your **Super Fantasy Kingdom** profile.
 2. Install **Daily Caravan** with its listed dependencies, [BepInExPack](https://thunderstore.io/c/super-fantasy-kingdom/p/BepInEx/BepInExPack/) and [HideManagerGameObject_Config](https://thunderstore.io/c/super-fantasy-kingdom/p/BepInEx/HideManagerGameObject_Config/).
 3. Choose **Start modded** and continue an eligible kingdom.
+
+## Support
+
+[Support GKJ Games on Ko-fi](https://ko-fi.com/gkj_games)

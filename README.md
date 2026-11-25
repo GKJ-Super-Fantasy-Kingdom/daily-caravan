@@ -44,3 +44,7 @@ Both captures show Daily Caravan 0.1.3 in Super Fantasy Kingdom 0.8.068 after Co
 3. Choose **Start modded** and continue an eligible kingdom.
 
 For save and reload details, build commands, and packaging instructions, see the [developer reference](docs/save-and-build.md). See the [contribution guide](CONTRIBUTING.md) to report an issue or propose a change.
+
+## Support
+
+[Support GKJ Games on Ko-fi](https://ko-fi.com/gkj_games)
