@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace DailyCaravan
 {
-    [BepInPlugin("sfk.dailycaravan", "Daily Caravan", "0.1.3")]
+    [BepInPlugin("sfk.dailycaravan", "Daily Caravan", "0.1.4")]
     public sealed class DailyCaravanPlugin : BaseUnityPlugin
     {
         internal static DailyCaravanPlugin Instance;

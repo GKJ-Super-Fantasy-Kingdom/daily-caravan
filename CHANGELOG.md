@@ -1,9 +1,13 @@
 # Changelog
 
+## 0.1.4
+
+Clarify the mod’s description and compatibility for players.
+
 ## 0.1.3
 
 - Daily visits in ordinary kingdoms start on Day 16 by default once the giant gate is open. Set `AllowBeforeGiantGate = true` in the Schedule section to allow visits before opening the gate. The normal caravan progression check still applies.
-- Verified one visit and one item on Days 23–25 after Continue with a copied Day 22 save and the gate option enabled. Visitor Calendar 0.1.2 forecasts these visits without filling in missed days.
+- Visitor Calendar 0.1.2 forecasts these visits without filling in missed days.
 
 ## 0.1.2
 
