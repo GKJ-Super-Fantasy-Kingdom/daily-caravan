@@ -1,6 +1,6 @@
 {
   "name": "DailyCaravan",
-  "version_number": "0.1.4",
+  "version_number": "0.1.5",
   "website_url": "https://github.com/GKJ-Super-Fantasy-Kingdom/daily-caravan",
   "description": "Get one caravan item per eligible day from Day 16 by default. Set an earlier or later start, and choose whether the giant gate must be open.",
   "dependencies": [

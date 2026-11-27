@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace DailyCaravan
 {
-    [BepInPlugin("sfk.dailycaravan", "Daily Caravan", "0.1.4")]
+    [BepInPlugin("sfk.dailycaravan", "Daily Caravan", "0.1.5")]
     public sealed class DailyCaravanPlugin : BaseUnityPlugin
     {
         internal static DailyCaravanPlugin Instance;
@@ -41,6 +41,7 @@ namespace DailyCaravan
             {
                 patches.PatchAll(typeof(DailyCaravanPlugin).Assembly);
                 DaytimeManager.OnMorningStart += Morning;
+                OverlayManager.OnOverlayMinimize += CaravanOfferPresentation.OnMinimize;
                 Logger.LogInfo("Daily Caravan 0.1.3 ready.");
             }
             catch
@@ -53,6 +54,7 @@ namespace DailyCaravan
         private void OnDestroy()
         {
             DaytimeManager.OnMorningStart -= Morning;
+            OverlayManager.OnOverlayMinimize -= CaravanOfferPresentation.OnMinimize;
             patches?.UnpatchSelf();
             Instance = null;
         }

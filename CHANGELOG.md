@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Made the reward icons easier to read. A white stepped outline marks the card under the pointer or in focus.
+- Restored focus to the last item when you reopen a minimized offer with controller Cancel.
+- Updated the package icon and screenshots and verified the approved behavior on Super Fantasy Kingdom 0.8.070.
+
 ## 0.1.4
 
 Clarify the mod’s description and compatibility for players.

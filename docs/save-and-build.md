@@ -24,7 +24,11 @@ dotnet run --project tests/ScheduleChecks -c Release
 python package.py
 ```
 
-The local-import package is `dist/DailyCaravan-0.1.3.zip`.
+The local-import package is `dist/DailyCaravan-0.1.5.zip`.
+
+## Gate Setting Test
+
+On a copy of a Day 22 save with the gate closed, Continue opened on Day 23. With `AllowBeforeGiantGate = true` and `FirstDay = 16`, Days 23, 24, and 25 each brought one caravan and one item. With the default gate setting, no daily caravan arrived on Day 23.
 
 ## Contributing and License
 

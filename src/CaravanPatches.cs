@@ -141,8 +141,11 @@ namespace DailyCaravan
         private static bool IsCaravanCard(UICardItem card)
         {
             var screen = card == null ? null : card.GetComponentInParent<UIOverlayMerchant>();
-            return screen != null && Callback(screen)?.Target is GuestCaravan guest && Plugin.Owns(guest);
+            return OwnsNativeOffer(screen);
         }
+
+        internal static bool OwnsNativeOffer(UIOverlayMerchant screen) =>
+            screen != null && Callback(screen)?.Target is GuestCaravan guest && Plugin.Owns(guest);
 
         internal static bool CanGrant(UICardItem card, out string id)
         {
